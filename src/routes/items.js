@@ -2,12 +2,10 @@ const { Router } = require('express');
 const router = Router();
 const axios = require('axios');
 var mcache = require('memory-cache');
-const colors = require('colors');
+const Config = require('../../config.js');
 
 //#region CACHE
 var _FechaUltimaLimpieza = new Date();
-const _TiempoCacheo = 60 * 30; //En segundos - 30 minutos
-console.log(colors.bgRed.white("Cache del servidor: " + _TiempoCacheo + " segundos."));
 ChequearLimpiezaCache();
 function ChequearLimpiezaCache(){
     try {
@@ -16,7 +14,7 @@ function ChequearLimpiezaCache(){
         var _Segundos = (_FechaActual.getTime() - _FechaUltimaLimpieza.getTime()) / 1000;
         _Segundos = Math.abs(_Segundos);
 
-        if (_Segundos > _TiempoCacheo){
+        if (_Segundos > Config.TiempoCacheoEnSegundos){
             console.log("-- Keys eliminadas: " + mcache.memsize());
             mcache.clear();
             _FechaUltimaLimpieza = new Date();
@@ -45,6 +43,10 @@ var cache = () => {
 }
 //#endregion
 
+//#region ENDPOINTs
+/**
+ * Ejemplo de llamada: http://localhost:2004/api/items?q=reloj
+ */
 router.get('/', cache(), async (req, res) => {
     try {
         var q = req.query.q;
@@ -52,8 +54,7 @@ router.get('/', cache(), async (req, res) => {
             await axios.get("https://api.mercadolibre.com/sites/MLA/search?q=" + q)
             .then(function (response){
                 let data = response.data;
-                //console.log(data.results.length);
-                //res.status(200).json(data.results.slice(0, 4));
+                data.results = data.results.slice(0, Config.LimiteProductosDevueltos);
                 let _Retorno = new RetornoBusqueda();
                 _Retorno.author.name = "Lucas";
                 _Retorno.author.lastname = "Jappert";
@@ -76,16 +77,19 @@ router.get('/', cache(), async (req, res) => {
                 res.status(200).json(_Retorno);
             })
             .catch(function (e){
-                res.status(200).send(e);
+                res.status(400).json({status: 400, message: e});
             });
         }else{
-            res.status(400).send("asdasd");
+            res.status(400).json({status: 400, message: "Parámetro inválido!"});
         }
     } catch (error) {
-        res.status(400).send(error);
+        res.status(400).json({status: 400, message: error});
     }
 });
 
+/**
+ * Ejemplo de llamada: http://localhost:2004/api/items/MLA878112859
+ */
 router.get('/:id', cache(), async (req, res) => {
     try {
         var id = req.params.id;
@@ -106,7 +110,7 @@ router.get('/:id', cache(), async (req, res) => {
             _Retorno.item.category_id = el.category_id;
         })
         .catch(function (e){
-            console.log(e);
+            res.status(400).json({status: 400, message: e}); return;
         });
 
         await axios.get("https://api.mercadolibre.com/items/" + id + "/description")
@@ -115,7 +119,7 @@ router.get('/:id', cache(), async (req, res) => {
             _Retorno.item.description = el.plain_text;
         })
         .catch(function (e){
-            console.log(e);
+            res.status(400).json({status: 400, message: e}); return;
         });
         
         await axios.get("https://api.mercadolibre.com/categories/" + _Retorno.item.category_id)
@@ -125,14 +129,15 @@ router.get('/:id', cache(), async (req, res) => {
             // console.log(el);
         })
         .catch(function (e){
-            console.log(e);
+            res.status(400).json({status: 400, message: e}); return;
         });
         
         res.status(200).json(_Retorno);
-    } catch (error) {
-        res.status(400).send(error);
+    } catch (e) {
+        res.status(400).json({status: 400, message: e});
     }
 });
+//#endregion
 
 //#region Clases Auxiliares
 RetornoBusqueda = class {
@@ -173,7 +178,7 @@ Precio = class {
         this.decimals = 0;
         try {
             if(precio){
-                precio = Math.abs(precio); // Change to positive
+                precio = Math.abs(precio); // Aseguro que sea positivo
                 this.amount = Math.trunc(precio);
                 this.decimals = precio - Math.floor(precio);
             }
