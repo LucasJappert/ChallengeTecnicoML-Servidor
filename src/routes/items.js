@@ -6,7 +6,7 @@ const colors = require('colors');
 
 //#region CACHE
 var _FechaUltimaLimpieza = new Date();
-const _TiempoCacheo = 120; //En segundos
+const _TiempoCacheo = 60 * 30; //En segundos - 30 minutos
 console.log(colors.bgRed.white("Cache del servidor: " + _TiempoCacheo + " segundos."));
 ChequearLimpiezaCache();
 function ChequearLimpiezaCache(){
@@ -17,7 +17,7 @@ function ChequearLimpiezaCache(){
         _Segundos = Math.abs(_Segundos);
 
         if (_Segundos > _TiempoCacheo){
-            //console.log("-- Keys eliminadas: " + mcache.memsize());
+            console.log("-- Keys eliminadas: " + mcache.memsize());
             mcache.clear();
             _FechaUltimaLimpieza = new Date();
         }
@@ -64,10 +64,11 @@ router.get('/', cache(), async (req, res) => {
                     item.id = el.id;
                     item.title = el.title;
                     item.price = new Precio(el.price);
-                    item.picture = el.thumbnail;
-                    item.condition = el.condition;
+                    item.picture = el.thumbnail.replace("http://", "https://");
+                    item.condition = el.condition.replace("new", "Nuevo").replace("used", "Usado");
                     item.free_shipping = el.shipping.free_shipping;
                     item.sold_quantity = el.sold_quantity;
+                    item.address_state_name = el.address.state_name;
 
                     _Retorno.items.push(item);
                 }
@@ -90,30 +91,42 @@ router.get('/:id', cache(), async (req, res) => {
         var id = req.params.id;
         let _Retorno = new RetornoItem();
         await axios.get("https://api.mercadolibre.com/items/" + id)
-            .then(function (response){
-                let el = response.data;
-                _Retorno.author.name = "Lucas";
-                _Retorno.author.lastname = "Jappert";
-                _Retorno.item.id = el.id;
-                _Retorno.item.title = el.title;
-                _Retorno.item.price = new Precio(el.price);
-                _Retorno.item.picture = el.thumbnail;
-                _Retorno.item.condition = el.condition;
-                _Retorno.item.free_shipping = el.shipping.free_shipping;
-                _Retorno.item.sold_quantity = el.sold_quantity;
-            })
-            .catch(function (e){
-                console.log(e);
-            });
+        .then(function (response){
+            let el = response.data;
+            _Retorno.author.name = "Lucas";
+            _Retorno.author.lastname = "Jappert";
+            _Retorno.item.id = el.id;
+            _Retorno.item.title = el.title;
+            _Retorno.item.price = new Precio(el.price);
+            _Retorno.item.picture = el.pictures[0].url.replace("http://", "https://");
+            _Retorno.item.condition = el.condition.replace("new", "Nuevo").replace("used", "Usado");
+            _Retorno.item.free_shipping = el.shipping.free_shipping;
+            _Retorno.item.sold_quantity = el.sold_quantity;
+            _Retorno.item.address_state_name = el.seller_address.state.name;
+            _Retorno.item.category_id = el.category_id;
+        })
+        .catch(function (e){
+            console.log(e);
+        });
 
-            await axios.get("https://api.mercadolibre.com/items/" + id + "/description")
-            .then(function (response){
-                let el = response.data;
-                _Retorno.item.description = el.plain_text;
-            })
-            .catch(function (e){
-                console.log(e);
-            });
+        await axios.get("https://api.mercadolibre.com/items/" + id + "/description")
+        .then(function (response){
+            let el = response.data;
+            _Retorno.item.description = el.plain_text;
+        })
+        .catch(function (e){
+            console.log(e);
+        });
+        
+        await axios.get("https://api.mercadolibre.com/categories/" + _Retorno.item.category_id)
+        .then(function (response){
+            let _Data = response.data;
+            _Retorno.item.categories = _Data.path_from_root;
+            // console.log(el);
+        })
+        .catch(function (e){
+            console.log(e);
+        });
         
         res.status(200).json(_Retorno);
     } catch (error) {
@@ -150,11 +163,12 @@ Item = class {
         this.condition = "";
         this.free_shipping = false;
         this.sold_quantity = 0;
+        this.address_state_name = "";
     }
 };
 Precio = class {
     constructor(precio){
-        this.currency = "pesos";
+        this.currency = "$";
         this.amount = 0;
         this.decimals = 0;
         try {
