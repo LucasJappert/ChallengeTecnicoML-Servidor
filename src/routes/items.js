@@ -3,6 +3,7 @@ const router = Router();
 const axios = require('axios');
 var mcache = require('memory-cache');
 const Config = require('../../config.js');
+const colors = require('colors');
 
 //#region CACHE
 var _FechaUltimaLimpieza = new Date();
@@ -29,11 +30,13 @@ var cache = () => {
         let key = '__express__' + req.originalUrl || req.url;
         let cachedBody = mcache.get(key);
         if (cachedBody) {
+            console.log(colors.yellow("Respuesta retornada caché: " + key));
             res.send(cachedBody);
             return;
         } else {
             res.sendResponse = res.send;
             res.send = (body) => {
+                console.log(colors.green("Respuesta guardada en caché: " + key));
                 mcache.put(key, body);
                 res.sendResponse(body);
             }
@@ -180,7 +183,7 @@ Precio = class {
             if(precio){
                 precio = Math.abs(precio); // Aseguro que sea positivo
                 this.amount = Math.trunc(precio);
-                this.decimals = precio - Math.floor(precio);
+                this.decimals = Math.round(precio % 1 * 100, 2);// Math.round(precio - this.amount, 2).toFixed(2);
             }
         } catch (error) {
             
