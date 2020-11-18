@@ -16,7 +16,7 @@ function ChequearLimpiezaCache(){
         _Segundos = Math.abs(_Segundos);
 
         if (_Segundos > Config.TiempoCacheoEnSegundos){
-            console.log("-- Keys eliminadas: " + mcache.memsize());
+            console.log(colors.red("-- Keys eliminadas: " + mcache.memsize() + ". " + new Date()));
             mcache.clear();
             _FechaUltimaLimpieza = new Date();
         }
@@ -53,7 +53,7 @@ var cache = () => {
 router.get('/', cache(), async (req, res) => {
     try {
         var q = req.query.q;
-        if (q.length > 2){
+        if (q.length > 1){
             await axios.get("https://api.mercadolibre.com/sites/MLA/search?q=" + q)
             .then(function (response){
                 let data = response.data;
